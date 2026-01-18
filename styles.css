@@ -1,0 +1,249 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #0f1116;
+  color: #e6e6e6;
+}
+
+code {
+  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.app-header {
+  padding: 20px 28px;
+  border-bottom: 1px solid #1f2430;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-header h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.muted {
+  color: #9aa3b2;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.status {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #232a3b;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.status.connected {
+  background: #1f4d36;
+  color: #bff2d6;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 24px 28px 40px;
+}
+
+.panel {
+  background: #141824;
+  border: 1px solid #1f2430;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.small-button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+details.panel {
+  padding: 0;
+}
+
+details.panel[open] {
+  padding: 18px;
+}
+
+details.panel summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 18px;
+}
+
+details.panel summary::-webkit-details-marker {
+  display: none;
+}
+
+details.panel summary .small {
+  margin-left: auto;
+}
+
+.panel > .row {
+  margin-top: 6px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.field input,
+select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2a2f3b;
+  background: #0f131b;
+  color: #e6e6e6;
+}
+
+.field input:focus,
+select:focus {
+  outline: 2px solid #356df3;
+  border-color: transparent;
+}
+
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #1f2430;
+  color: #e6e6e6;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover {
+  border-color: #2e3545;
+}
+
+button.primary {
+  background: #356df3;
+  color: #fff;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: #2a2f3b;
+}
+
+button.danger {
+  background: #d24c4c;
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.hint {
+  font-size: 12px;
+  color: #9aa3b2;
+  margin: 0;
+}
+
+.device-meta {
+  font-size: 13px;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #1d2230;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.app-item {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #0f131b;
+  border: 1px solid #1f2430;
+}
+
+.app-item span {
+  word-break: break-all;
+}
+
+.app-item .actions {
+  display: flex;
+  gap: 6px;
+}
+
+.log-panel {
+  grid-column: 1 / -1;
+}
+
+.log-output {
+  background: #0f131b;
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #1f2430;
+  min-height: 120px;
+  max-height: 300px;
+  overflow: auto;
+  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.footer {
+  padding: 12px 28px 20px;
+  font-size: 12px;
+}
