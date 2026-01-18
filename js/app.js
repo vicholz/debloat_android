@@ -361,6 +361,12 @@ async function connectUsb() {
   } catch (error) {
     setStatus(false);
     updateDeviceInfo("No device connected.");
+    if (adbClient && error && /timed out/i.test(error.message || "")) {
+      logDiag({
+        event: "connect_timeout",
+        diagnostics: adbClient.getFullDiagnostics(),
+      });
+    }
     if (adbClient) {
       try {
         await adbClient.disconnect();

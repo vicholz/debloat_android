@@ -614,7 +614,15 @@ export class AdbUsbClient {
 
     const packetSize = this.outPacketSize || 0;
     const sendChunk = async (chunk) => {
-      await this.device.transferOut(this.outEndpoint, chunk);
+      const safeChunk = chunk.length
+        ? new Uint8Array(
+            chunk.buffer.slice(
+              chunk.byteOffset,
+              chunk.byteOffset + chunk.byteLength
+            )
+          )
+        : chunk;
+      await this.device.transferOut(this.outEndpoint, safeChunk);
       if (packetSize && chunk.length && chunk.length % packetSize === 0) {
         await this.device.transferOut(this.outEndpoint, new Uint8Array(0));
       }
@@ -709,7 +717,11 @@ export class AdbUsbClient {
       if (headerResult.data.byteLength !== 24) {
         continue;
       }
-      const headerView = new DataView(headerResult.data.buffer);
+      const headerView = new DataView(
+        headerResult.data.buffer,
+        headerResult.data.byteOffset,
+        headerResult.data.byteLength
+      );
       const command = headerView.getUint32(0, true);
       const arg0 = headerView.getUint32(4, true);
       const arg1 = headerView.getUint32(8, true);
