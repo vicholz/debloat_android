@@ -1,3 +1,28 @@
+/**
+ * =============================================================================
+ * Universal Android Debloater - Web Application Styles
+ * =============================================================================
+ * 
+ * A dark-themed, modern UI for the Android Debloater web application.
+ * 
+ * COLOR PALETTE:
+ * - Background:    #0f1116 (darkest), #141824 (panels), #1f2430 (borders)
+ * - Text:          #e6e6e6 (primary), #9aa3b2 (muted)
+ * - Primary:       #356df3 (blue accent)
+ * - Danger:        #d24c4c (red for destructive actions)
+ * - Success:       #1f4d36 background, #bff2d6 text (connected status)
+ * 
+ * LAYOUT:
+ * - Flexbox-based main layout
+ * - CSS Grid for top row panels (2 columns on desktop, 1 on mobile)
+ * - Responsive design with media query at 700px breakpoint
+ */
+
+/* =============================================================================
+   RESET & BASE STYLES
+   ============================================================================= */
+
+/* Use border-box sizing for more predictable layouts */
 * {
   box-sizing: border-box;
 }
@@ -5,13 +30,38 @@
 body {
   margin: 0;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  background: #0f1116;
-  color: #e6e6e6;
+  background: #0f1116;  /* Darkest background color */
+  color: #e6e6e6;       /* Light text for contrast */
 }
 
+/* Monospace font for code elements and log output */
 code {
   font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* =============================================================================
+   UTILITY CLASSES
+   ============================================================================= */
+
+/* Muted text color for secondary information */
+.muted {
+  color: #9aa3b2;
+}
+
+/* Smaller text size */
+.small {
+  font-size: 12px;
+}
+
+/* Flexible growing element */
+.grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* =============================================================================
+   HEADER
+   ============================================================================= */
 
 .app-header {
   padding: 20px 28px;
@@ -27,32 +77,30 @@ code {
   font-size: 20px;
 }
 
-.muted {
-  color: #9aa3b2;
-}
+/* =============================================================================
+   CONNECTION STATUS BADGE
+   ============================================================================= */
 
-.small {
-  font-size: 12px;
-}
-
-.grow {
-  flex: 1;
-  min-width: 200px;
-}
-
+/* Default disconnected state */
 .status {
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: 999px;  /* Pill shape */
   background: #232a3b;
   font-weight: 600;
   font-size: 13px;
 }
 
+/* Connected state - green background */
 .status.connected {
   background: #1f4d36;
   color: #bff2d6;
 }
 
+/* =============================================================================
+   MAIN LAYOUT
+   ============================================================================= */
+
+/* Main content container - vertical flex layout */
 .layout {
   display: flex;
   flex-direction: column;
@@ -60,18 +108,21 @@ code {
   padding: 24px 28px 40px;
 }
 
+/* Top row with USB Connection and Saved Lists panels */
 .top-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr);  /* Two equal columns */
   gap: 20px;
 }
 
+/* Mobile responsive: stack panels vertically */
 @media (max-width: 700px) {
   .top-row {
     grid-template-columns: 1fr;
   }
 }
 
+/* Visual separator line between groups of controls */
 .separator {
   width: 1px;
   height: 20px;
@@ -79,17 +130,28 @@ code {
   margin: 0 4px;
 }
 
+/* =============================================================================
+   APPS PANEL
+   ============================================================================= */
+
+/* Apps panel uses flex layout for the header row and list */
 .apps-panel {
   display: flex;
   flex-direction: column;
 }
 
+/* App list takes available space with scroll */
 .apps-panel .app-list {
   flex: 1;
-  max-height: 50vh;
-  min-height: 200px;
+  max-height: 50vh;   /* Limit height to half viewport */
+  min-height: 200px;  /* Minimum height for usability */
 }
 
+/* =============================================================================
+   PANEL COMPONENT
+   ============================================================================= */
+
+/* Base panel style - dark card with subtle border */
 .panel {
   background: #141824;
   border: 1px solid #1f2430;
@@ -100,6 +162,7 @@ code {
   gap: 12px;
 }
 
+/* Panel header with title and actions */
 .panel-header {
   display: flex;
   align-items: center;
@@ -112,11 +175,17 @@ code {
   font-size: 16px;
 }
 
+/* Small button variant for panel headers */
 .small-button {
   padding: 6px 10px;
   font-size: 12px;
 }
 
+/* =============================================================================
+   COLLAPSIBLE PANEL (using <details>)
+   ============================================================================= */
+
+/* Collapsible panel without padding when closed */
 details.panel {
   padding: 0;
 }
@@ -126,11 +195,12 @@ details.panel[open] {
 }
 
 details.panel summary {
-  list-style: none;
+  list-style: none;        /* Remove default disclosure triangle */
   cursor: pointer;
   padding: 18px;
 }
 
+/* Hide WebKit's default disclosure marker */
 details.panel summary::-webkit-details-marker {
   display: none;
 }
@@ -139,10 +209,16 @@ details.panel summary .small {
   margin-left: auto;
 }
 
+/* =============================================================================
+   ROW LAYOUT
+   ============================================================================= */
+
+/* Rows inside panels have extra top margin */
 .panel > .row {
   margin-top: 6px;
 }
 
+/* Horizontal flex row with wrapping */
 .row {
   display: flex;
   gap: 10px;
@@ -150,6 +226,11 @@ details.panel summary .small {
   flex-wrap: wrap;
 }
 
+/* =============================================================================
+   FORM FIELDS
+   ============================================================================= */
+
+/* Field container with label above input */
 .field {
   display: flex;
   flex-direction: column;
@@ -158,6 +239,7 @@ details.panel summary .small {
   width: 100%;
 }
 
+/* Text inputs and select elements */
 .field input,
 select {
   padding: 8px 10px;
@@ -167,12 +249,18 @@ select {
   color: #e6e6e6;
 }
 
+/* Focus state with blue outline */
 .field input:focus,
 select:focus {
   outline: 2px solid #356df3;
   border-color: transparent;
 }
 
+/* =============================================================================
+   BUTTONS
+   ============================================================================= */
+
+/* Base button style */
 button {
   padding: 8px 12px;
   border-radius: 8px;
@@ -187,36 +275,47 @@ button:hover {
   border-color: #2e3545;
 }
 
+/* Primary button - blue background for main actions */
 button.primary {
   background: #356df3;
   color: #fff;
 }
 
+/* Ghost button - transparent with subtle border */
 button.ghost {
   background: transparent;
   border-color: #2a2f3b;
 }
 
+/* Danger button - red background for destructive actions */
 button.danger {
   background: #d24c4c;
   color: #fff;
 }
 
+/* Disabled button state */
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
+/* =============================================================================
+   MISC COMPONENTS
+   ============================================================================= */
+
+/* Hint text for form fields */
 .hint {
   font-size: 12px;
   color: #9aa3b2;
   margin: 0;
 }
 
+/* Device metadata text */
 .device-meta {
   font-size: 13px;
 }
 
+/* Badge/pill component for counts */
 .badge {
   padding: 6px 10px;
   border-radius: 999px;
@@ -225,6 +324,11 @@ button:disabled {
   font-weight: 600;
 }
 
+/* =============================================================================
+   APP LIST
+   ============================================================================= */
+
+/* Container for package list */
 .app-list {
   list-style: none;
   margin: 0;
@@ -233,11 +337,13 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
   max-height: 420px;
-  overflow: auto;
+  overflow: auto;        /* Scroll when list is long */
 }
 
+/* Individual app item in the list */
 .app-item {
   display: grid;
+  /* 3-column layout: checkbox | package name | action buttons */
   grid-template-columns: 20px 1fr auto;
   gap: 10px;
   align-items: center;
@@ -247,19 +353,27 @@ button:disabled {
   border: 1px solid #1f2430;
 }
 
+/* Allow long package names to wrap */
 .app-item span {
   word-break: break-all;
 }
 
+/* Container for action buttons in each app item */
 .app-item .actions {
   display: flex;
   gap: 6px;
 }
 
+/* =============================================================================
+   LOG PANEL
+   ============================================================================= */
+
+/* Log panel spans full width in grid layouts */
 .log-panel {
   grid-column: 1 / -1;
 }
 
+/* Log output container with monospace font */
 .log-output {
   background: #0f131b;
   border-radius: 10px;
@@ -268,10 +382,15 @@ button:disabled {
   min-height: 120px;
   max-height: 300px;
   overflow: auto;
+  /* Monospace font for log readability */
   font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  white-space: pre-wrap;
+  white-space: pre-wrap;  /* Preserve whitespace but allow wrapping */
 }
+
+/* =============================================================================
+   FOOTER (if used)
+   ============================================================================= */
 
 .footer {
   padding: 12px 28px 20px;
