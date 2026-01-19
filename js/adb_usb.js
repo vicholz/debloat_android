@@ -439,9 +439,11 @@ export class AdbUsbClient {
       await this.clearHaltSafe("in");
       await this.clearHaltSafe("out");
       this.resetSessionState();
-      this.ensureReadLoop();
+      // Don't start read loop yet - waitForPacket handles reading during handshake
       await this.sendCnxn();
       const cnxn = await this.waitForPacket("CNXN", 8000);
+      // Now start read loop for ongoing communication
+      this.ensureReadLoop();
 
       this.maxPayload = cnxn.arg1 || this.maxPayload;
       this.deviceProperties = parseProperties(
@@ -469,23 +471,26 @@ export class AdbUsbClient {
   }
 
   async claimInterface(device, interfaceInfo) {
+    // ya-webadb: selectConfiguration if different
     if (
-      !device.configuration ||
-      device.configuration.configurationValue !==
-        interfaceInfo.configuration.configurationValue
+      device.configuration?.configurationValue !==
+      interfaceInfo.configuration.configurationValue
     ) {
       await device.selectConfiguration(
         interfaceInfo.configuration.configurationValue
       );
     }
-    try {
-      await device.claimInterface(interfaceInfo.interface_.interfaceNumber);
-    } catch (error) {
-      throw new Error(
-        "Unable to claim the USB interface. Close any running adb server and reconnect the device."
-      );
+    // ya-webadb: only claim if not already claimed
+    if (!interfaceInfo.interface_.claimed) {
+      try {
+        await device.claimInterface(interfaceInfo.interface_.interfaceNumber);
+      } catch (error) {
+        throw new Error(
+          "Unable to claim the USB interface. Close any running adb server and reconnect the device."
+        );
+      }
     }
-
+    // ya-webadb: only select alternate if different from current
     if (
       interfaceInfo.interface_.alternate.alternateSetting !==
       interfaceInfo.alternate.alternateSetting
@@ -495,8 +500,6 @@ export class AdbUsbClient {
         interfaceInfo.alternate.alternateSetting
       );
     }
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
     return findUsbEndpoints(interfaceInfo.alternate.endpoints);
   }
 
@@ -705,45 +708,86 @@ export class AdbUsbClient {
   }
 
   async readPacket() {
+    // ya-webadb reads with packetSize for header, expects exactly 24 bytes
     const packetSize = this.inPacketSize || 512;
+    const startTime = Date.now();
     while (true) {
-      const headerResult = await this.device.transferIn(
-        this.inEndpoint,
-        packetSize
-      );
-      if (!headerResult || headerResult.status !== "ok" || !headerResult.data) {
+      // Timeout protection for individual read attempts
+      if (Date.now() - startTime > 10000) {
+        this.packetLog.push({
+          ts: new Date().toISOString(),
+          direction: "debug",
+          message: "readPacket timeout after 10s of trying"
+        });
+        return undefined;
+      }
+      
+      let headerResult;
+      try {
+        this.packetLog.push({
+          ts: new Date().toISOString(),
+          direction: "debug",
+          message: `transferIn start, endpoint=${this.inEndpoint}, size=${packetSize}`
+        });
+        headerResult = await this.device.transferIn(
+          this.inEndpoint,
+          packetSize
+        );
+        this.packetLog.push({
+          ts: new Date().toISOString(),
+          direction: "debug",
+          message: `transferIn done, status=${headerResult?.status}, bytes=${headerResult?.data?.byteLength}`
+        });
+      } catch (error) {
+        this.packetLog.push({
+          ts: new Date().toISOString(),
+          direction: "debug",
+          message: `transferIn error: ${error.message}`
+        });
+        throw error;
+      }
+      
+      if (!headerResult || !headerResult.data) {
         return undefined;
       }
       if (headerResult.data.byteLength !== 24) {
+        // ya-webadb: skip if not exactly 24 bytes
+        this.packetLog.push({
+          ts: new Date().toISOString(),
+          direction: "debug",
+          message: `skipping non-24-byte packet: ${headerResult.data.byteLength} bytes`
+        });
         continue;
       }
-      const headerView = new DataView(
-        headerResult.data.buffer,
-        headerResult.data.byteOffset,
-        headerResult.data.byteLength
-      );
+      // ya-webadb: Per spec, result.data always covers the whole buffer
+      const buffer = new Uint8Array(headerResult.data.buffer);
+      const headerView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
       const command = headerView.getUint32(0, true);
       const arg0 = headerView.getUint32(4, true);
       const arg1 = headerView.getUint32(8, true);
       const length = headerView.getUint32(12, true);
       const magic = headerView.getUint32(20, true);
       if (magic !== (command ^ 0xffffffff)) {
+        // ya-webadb: skip invalid packets
+        this.packetLog.push({
+          ts: new Date().toISOString(),
+          direction: "debug",
+          message: `skipping invalid magic: cmd=${command.toString(16)}, magic=${magic.toString(16)}`
+        });
         continue;
       }
-      let payload = new Uint8Array(0);
-      if (length) {
+      let payload;
+      if (length !== 0) {
         const payloadResult = await this.device.transferIn(
           this.inEndpoint,
           length
         );
-        if (!payloadResult || payloadResult.status !== "ok" || !payloadResult.data) {
+        if (!payloadResult || !payloadResult.data) {
           return undefined;
         }
-        payload = new Uint8Array(
-          payloadResult.data.buffer,
-          payloadResult.data.byteOffset,
-          payloadResult.data.byteLength
-        );
+        payload = new Uint8Array(payloadResult.data.buffer);
+      } else {
+        payload = new Uint8Array(0);
       }
       return {
         command: intToCommand(command),
