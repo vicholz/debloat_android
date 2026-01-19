@@ -17,9 +17,7 @@ const enableBtn = document.getElementById("enableBtn");
 const uninstallBtn = document.getElementById("uninstallBtn");
 const connectionStatus = document.getElementById("connectionStatus");
 const logOutput = document.getElementById("logOutput");
-const diagOutput = document.getElementById("diagOutput");
 const copyLogBtn = document.getElementById("copyLogBtn");
-const copyDiagBtn = document.getElementById("copyDiagBtn");
 const savedListNameInput = document.getElementById("savedListName");
 const saveListBtn = document.getElementById("saveListBtn");
 const savedListsSelect = document.getElementById("savedListsSelect");
@@ -28,12 +26,16 @@ const deleteListBtn = document.getElementById("deleteListBtn");
 const savedListInfo = document.getElementById("savedListInfo");
 const loadLastBtn = document.getElementById("loadLastBtn");
 const lastSelectedInfo = document.getElementById("lastSelectedInfo");
+const exportListBtn = document.getElementById("exportListBtn");
+const importListBtn = document.getElementById("importListBtn");
+const importFileInput = document.getElementById("importFileInput");
 
 const STORAGE_KEY = "uad.savedLists";
 const LAST_SELECTED_KEY = "uad.lastSelected";
 
 let packages = [];
 let selectedPackages = new Set();
+let disabledPackages = new Set();
 let savedLists = {};
 let lastSelected = null;
 let adbClient = null;
@@ -48,11 +50,8 @@ function log(message) {
 }
 
 function logDiag(payload) {
-  const timestamp = new Date().toLocaleTimeString();
-  const text =
-    typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
-  diagOutput.textContent += `[${timestamp}] ${text}\n`;
-  diagOutput.scrollTop = diagOutput.scrollHeight;
+  // Output diagnostics to browser console
+  console.log("[UAD Diagnostics]", payload);
 }
 
 function withTimeout(promise, timeoutMs, label) {
@@ -133,11 +132,20 @@ function renderAppList() {
     const actions = document.createElement("div");
     actions.className = "actions";
 
-    const disableBtn = document.createElement("button");
-    disableBtn.textContent = "Disable";
-    disableBtn.className = "danger";
-    disableBtn.addEventListener("click", () => {
-      runPackageAction("disable", [pkg]);
+    const isDisabled = disabledPackages.has(pkg);
+    const toggleBtn = document.createElement("button");
+    toggleBtn.textContent = isDisabled ? "Enable" : "Disable";
+    toggleBtn.className = isDisabled ? "primary" : "danger";
+    toggleBtn.addEventListener("click", async () => {
+      const action = isDisabled ? "enable" : "disable";
+      await runPackageAction(action, [pkg]);
+      // Update state and re-render this row
+      if (action === "disable") {
+        disabledPackages.add(pkg);
+      } else {
+        disabledPackages.delete(pkg);
+      }
+      renderAppList();
     });
 
     const uninstallBtn = document.createElement("button");
@@ -147,7 +155,7 @@ function renderAppList() {
       runPackageAction("uninstall", [pkg]);
     });
 
-    actions.append(disableBtn, uninstallBtn);
+    actions.append(toggleBtn, uninstallBtn);
     li.append(checkbox, label, actions);
     fragment.appendChild(li);
   });
@@ -330,8 +338,74 @@ function deleteSavedList() {
   log(`Deleted list "${name}".`);
 }
 
+function exportList() {
+  // Export current selection or selected saved list
+  let name = savedListsSelect.value;
+  let packagesToExport;
+  
+  if (selectedPackages.size > 0) {
+    // Export current selection
+    name = name || "selection";
+    packagesToExport = Array.from(selectedPackages);
+  } else if (name && savedLists[name]) {
+    // Export saved list
+    packagesToExport = savedLists[name];
+  } else {
+    log("Select packages or a saved list to export.");
+    return;
+  }
+  
+  const data = {
+    name,
+    packages: packagesToExport,
+    exportedAt: new Date().toISOString(),
+  };
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${name.replace(/[^a-z0-9_-]/gi, "_")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`Exported ${packagesToExport.length} packages as "${a.download}".`);
+}
+
+function importList(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const content = e.target.result;
+      let data;
+      
+      // Try JSON first
+      try {
+        data = JSON.parse(content);
+      } catch {
+        // Fallback: treat as plain text list (one package per line)
+        const lines = content.split("\n").map(l => l.trim()).filter(Boolean);
+        data = { name: file.name.replace(/\.[^.]+$/, ""), packages: lines };
+      }
+      
+      if (!data.packages || !Array.isArray(data.packages)) {
+        throw new Error("Invalid file format: missing packages array");
+      }
+      
+      const name = data.name || file.name.replace(/\.[^.]+$/, "");
+      savedLists[name] = data.packages;
+      saveListsToStorage();
+      refreshSavedListSelect();
+      savedListsSelect.value = name;
+      log(`Imported list "${name}" with ${data.packages.length} packages.`);
+    } catch (error) {
+      log(`Import failed: ${error.message}`);
+    }
+  };
+  reader.readAsText(file);
+}
+
 async function connectUsb() {
-  const timeout = Number(streamTimeoutInput.value) || 15000;
+  const timeout = Number(streamTimeoutInput.value) || 5000;
   try {
     if (adbClient) {
       await disconnectUsb();
@@ -435,10 +509,12 @@ async function loadPackages() {
     setStatus(true);
     log("Listing packages from device...");
     packages = await adbClient.listPackages();
+    log("Getting disabled packages...");
+    disabledPackages = await adbClient.listDisabledPackages();
     selectedPackages = new Set();
     renderAppList();
     updateSelectionCount();
-    log(`Loaded ${packages.length} packages.`);
+    log(`Loaded ${packages.length} packages (${disabledPackages.size} disabled).`);
   } catch (error) {
     setStatus(false);
     log(error.message || "Failed to list packages.");
@@ -520,13 +596,18 @@ uninstallBtn.addEventListener("click", () =>
 saveListBtn.addEventListener("click", saveCurrentList);
 loadListBtn.addEventListener("click", loadSavedList);
 deleteListBtn.addEventListener("click", deleteSavedList);
+exportListBtn.addEventListener("click", exportList);
+importListBtn.addEventListener("click", () => importFileInput.click());
+importFileInput.addEventListener("change", (e) => {
+  if (e.target.files.length > 0) {
+    importList(e.target.files[0]);
+    e.target.value = ""; // Reset for next import
+  }
+});
 savedListsSelect.addEventListener("change", updateSavedListInfo);
 loadLastBtn.addEventListener("click", loadLastSelectedList);
 copyLogBtn.addEventListener("click", () =>
   copyPanelText("Log", logOutput.textContent)
-);
-copyDiagBtn.addEventListener("click", () =>
-  copyPanelText("Diagnostics", diagOutput.textContent)
 );
 
 setStatus(false);

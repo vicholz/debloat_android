@@ -21,106 +21,69 @@
     </header>
 
     <main class="layout">
-      <section class="panel">
-        <h2>USB Connection</h2>
-        <label class="field">
-          <span>ADB Server Timeout (ms)</span>
-          <input id="streamTimeout" type="number" min="1000" value="15000" />
-        </label>
-        <p class="hint">
-          Requires Chrome/Edge and USB debugging enabled. You will be prompted
-          to select a device via WebUSB.
-        </p>
-        <div class="row">
-          <button id="selectUsbBtn" class="ghost">Select Device</button>
-          <button id="connectUsbBtn" class="primary">Connect</button>
-          <button id="disconnectUsbBtn" class="ghost" disabled>
-            Disconnect
-          </button>
-        </div>
-        <div class="device-meta muted" id="deviceInfo">
-          No device connected.
-        </div>
-      </section>
+      <div class="top-row">
+        <section class="panel">
+          <h2>USB Connection</h2>
+          <div class="row">
+            <button id="selectUsbBtn" class="ghost">Select Device</button>
+            <button id="connectUsbBtn" class="primary">Connect</button>
+            <button id="disconnectUsbBtn" class="ghost" disabled>Disconnect</button>
+          </div>
+          <div class="device-meta muted" id="deviceInfo">No device connected.</div>
+          <label class="field">
+            <span>Timeout (ms)</span>
+            <input id="streamTimeout" type="number" min="1000" value="5000" />
+          </label>
+        </section>
 
-      <section class="panel">
-        <h2>Apps</h2>
+        <section class="panel">
+          <h2>Saved Lists</h2>
+          <div class="row">
+            <input id="savedListName" type="text" placeholder="list name" style="flex:1" />
+            <button id="saveListBtn" class="primary">Save</button>
+          </div>
+          <div class="row">
+            <select id="savedListsSelect" style="flex:1"></select>
+            <button id="loadListBtn" class="ghost">Load</button>
+            <button id="deleteListBtn" class="ghost">Delete</button>
+          </div>
+          <div class="row">
+            <button id="loadLastBtn" class="ghost">Last</button>
+            <button id="exportListBtn" class="ghost">Export</button>
+            <button id="importListBtn" class="ghost">Import</button>
+            <input type="file" id="importFileInput" accept=".json,.txt" style="display:none" />
+          </div>
+          <div class="device-meta muted" id="savedListInfo">
+            <span id="lastSelectedInfo"></span>
+          </div>
+        </section>
+
+      </div>
+
+      <section class="panel apps-panel">
         <div class="row">
+          <h2 style="margin:0">Apps</h2>
           <button id="loadAppsBtn" class="primary">List Apps</button>
           <button id="selectAllBtn" class="ghost">Select All</button>
           <button id="clearSelectionBtn" class="ghost">Clear</button>
-        </div>
-        <label class="field">
-          <span>Filter packages</span>
-          <input id="filterInput" type="text" placeholder="com.example" />
-        </label>
-        <div class="row">
           <div class="badge" id="selectionCount">0 selected</div>
           <div class="badge" id="packageCount">0 total</div>
+          <span class="separator"></span>
+          <button id="disableBtn" class="danger">Disable Selected</button>
+          <button id="enableBtn" class="ghost">Enable Selected</button>
+          <button id="uninstallBtn" class="danger">Uninstall Selected</button>
+          <input id="filterInput" type="text" placeholder="Filter..." style="margin-left:auto; width:200px" />
         </div>
         <ul id="appList" class="app-list"></ul>
       </section>
 
       <section class="panel">
-        <h2>Saved Lists</h2>
-        <label class="field">
-          <span>List name</span>
-          <input id="savedListName" type="text" placeholder="my-essential-list" />
-        </label>
-        <div class="row">
-          <button id="saveListBtn" class="primary">Save Selected</button>
-          <span class="muted small">
-            Saves current selection in this browser.
-          </span>
-        </div>
-        <label class="field">
-          <span>Saved lists</span>
-          <select id="savedListsSelect"></select>
-        </label>
-        <div class="row">
-          <button id="loadListBtn" class="ghost">Load List</button>
-          <button id="deleteListBtn" class="ghost">Delete List</button>
-        </div>
-        <div class="row">
-          <button id="loadLastBtn" class="ghost">Load Last Selected</button>
-          <span class="muted small" id="lastSelectedInfo">No last selection.</span>
-        </div>
-        <div class="device-meta muted" id="savedListInfo">
-          No saved list selected.
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Actions</h2>
-        <div class="row">
-          <button id="disableBtn" class="danger">Disable Selected</button>
-          <button id="enableBtn" class="ghost">Enable Selected</button>
-          <button id="uninstallBtn" class="danger">Uninstall Selected</button>
-        </div>
-        <p class="hint">
-          Disable uses <code>pm disable-user --user 0</code>. Uninstall uses
-          <code>pm uninstall --user 0</code>.
-        </p>
-      </section>
-
-      <section class="panel log-panel">
         <div class="panel-header">
           <h2>Log</h2>
           <button id="copyLogBtn" class="ghost small-button">Copy</button>
         </div>
         <div id="logOutput" class="log-output" aria-live="polite"></div>
       </section>
-
-      <details class="panel log-panel" id="diagnosticsPanel">
-        <summary class="panel-header">
-          <h2>Diagnostics</h2>
-          <span class="muted small">Click to expand</span>
-        </summary>
-        <div class="row">
-          <button id="copyDiagBtn" class="ghost small-button">Copy</button>
-        </div>
-        <div id="diagOutput" class="log-output" aria-live="polite"></div>
-      </details>
     </main>
 
     <footer class="footer muted">

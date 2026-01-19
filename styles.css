@@ -54,10 +54,40 @@ code {
 }
 
 .layout {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 20px;
   padding: 24px 28px 40px;
+}
+
+.top-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 700px) {
+  .top-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.separator {
+  width: 1px;
+  height: 20px;
+  background: #2a2f3b;
+  margin: 0 4px;
+}
+
+.apps-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.apps-panel .app-list {
+  flex: 1;
+  max-height: 50vh;
+  min-height: 200px;
 }
 
 .panel {

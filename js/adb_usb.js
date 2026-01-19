@@ -34,26 +34,12 @@ const COMMANDS = {
   WRTE: commandToInt("WRTE"),
 };
 
+// Minimal features - don't advertise shell_v2 since we use simple shell
 const ADB_FEATURES = [
-  "shell_v2",
   "cmd",
   "stat_v2",
   "ls_v2",
   "fixed_push_mkdir",
-  "apex",
-  "abb",
-  "fixed_push_symlink_timestamp",
-  "abb_exec",
-  "remount_shell",
-  "track_app",
-  "sendrecv_v2",
-  "sendrecv_v2_brotli",
-  "sendrecv_v2_lz4",
-  "sendrecv_v2_zstd",
-  "sendrecv_v2_dry_run_send",
-  "devraw",
-  "app_info",
-  "delayed_ack",
 ];
 
 function commandToInt(command) {
@@ -296,7 +282,7 @@ async function rsaSignAdbToken(token, privateJwk) {
 }
 
 export class AdbUsbClient {
-  constructor({ streamTimeoutMs = 15000 } = {}) {
+  constructor({ streamTimeoutMs = 5000 } = {}) {
     this.streamTimeoutMs = streamTimeoutMs;
     this.device = null;
     this.configurationRef = null;
@@ -404,8 +390,20 @@ export class AdbUsbClient {
     const info = deviceInfo || (await AdbUsbClient.requestDevice());
     const device = info.device;
     let interfaceInfo = info.interfaceInfo;
+    
+    // Always close and reopen to ensure clean state
+    if (device.opened) {
+      try {
+        await device.close();
+      } catch (e) {
+        // Ignore close errors
+      }
+    }
     await device.open();
     this.device = device;
+    
+    // Reset packet log for fresh connection
+    this.packetLog = [];
     try {
       const refreshed = findUsbInterface(device);
       if (refreshed) {
@@ -439,9 +437,15 @@ export class AdbUsbClient {
       await this.clearHaltSafe("in");
       await this.clearHaltSafe("out");
       this.resetSessionState();
-      // Don't start read loop yet - waitForPacket handles reading during handshake
+      
       await this.sendCnxn();
+      
+      // Wait for CNXN response
       const cnxn = await this.waitForPacket("CNXN", 8000);
+      
+      // Small delay before starting read loop to let USB settle
+      await new Promise(r => setTimeout(r, 50));
+      
       // Now start read loop for ongoing communication
       this.ensureReadLoop();
 
@@ -471,7 +475,7 @@ export class AdbUsbClient {
   }
 
   async claimInterface(device, interfaceInfo) {
-    // ya-webadb: selectConfiguration if different
+    // Select configuration if different
     if (
       device.configuration?.configurationValue !==
       interfaceInfo.configuration.configurationValue
@@ -480,25 +484,38 @@ export class AdbUsbClient {
         interfaceInfo.configuration.configurationValue
       );
     }
-    // ya-webadb: only claim if not already claimed
-    if (!interfaceInfo.interface_.claimed) {
-      try {
-        await device.claimInterface(interfaceInfo.interface_.interfaceNumber);
-      } catch (error) {
-        throw new Error(
-          "Unable to claim the USB interface. Close any running adb server and reconnect the device."
-        );
-      }
+    
+    // Claim interface
+    try {
+      await device.claimInterface(interfaceInfo.interface_.interfaceNumber);
+    } catch (error) {
+      throw new Error(
+        "Unable to claim the USB interface. Close any running adb server and reconnect the device."
+      );
     }
-    // ya-webadb: only select alternate if different from current
-    if (
-      interfaceInfo.interface_.alternate.alternateSetting !==
-      interfaceInfo.alternate.alternateSetting
-    ) {
+    
+    // Only select alternate interface if different from current (ya-webadb behavior)
+    const currentAlternateSetting = interfaceInfo.interface_.alternate?.alternateSetting;
+    if (currentAlternateSetting !== interfaceInfo.alternate.alternateSetting) {
       await device.selectAlternateInterface(
         interfaceInfo.interface_.interfaceNumber,
         interfaceInfo.alternate.alternateSetting
       );
+      // Small delay for USB state to stabilize after alternate change
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    
+    // Get fresh endpoint references from the device's current configuration
+    const currentInterface = device.configuration.interfaces.find(
+      (i) => i.interfaceNumber === interfaceInfo.interface_.interfaceNumber
+    );
+    if (currentInterface) {
+      const currentAlternate = currentInterface.alternates.find(
+        (a) => a.alternateSetting === interfaceInfo.alternate.alternateSetting
+      );
+      if (currentAlternate) {
+        return findUsbEndpoints(currentAlternate.endpoints);
+      }
     }
     return findUsbEndpoints(interfaceInfo.alternate.endpoints);
   }
@@ -535,9 +552,37 @@ export class AdbUsbClient {
       .sort();
   }
 
+  async listDisabledPackages() {
+    const output = await this.runShell("pm list packages -d");
+    return new Set(
+      output
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("package:"))
+        .map((line) => line.replace("package:", ""))
+        .filter(Boolean)
+    );
+  }
+
   async runShell(command) {
+    // Try opening stream with shell command
+    console.log(`[ADB] runShell: opening shell:${command}`);
     const stream = await this.openStream(`shell:${command}`);
+    console.log(`[ADB] runShell: stream opened, collecting output...`);
     return this.collectStream(stream, this.streamTimeoutMs);
+  }
+  
+  // Test method to try basic shell
+  async testShell() {
+    console.log("[ADB] testShell: trying echo command");
+    try {
+      const result = await this.runShell("echo hello");
+      console.log("[ADB] testShell result:", result);
+      return result;
+    } catch (e) {
+      console.log("[ADB] testShell error:", e.message);
+      throw e;
+    }
   }
 
   disablePackage(packageName) {
@@ -560,7 +605,15 @@ export class AdbUsbClient {
   }
 
   async openStream(service) {
+    // Ensure read loop is running before opening stream
+    if (!this.readLoopRunning && this.device && this.device.opened) {
+      console.log(`[ADB] openStream: restarting read loop`);
+      this.ensureReadLoop();
+      await new Promise(r => setTimeout(r, 50)); // Give it time to start
+    }
+    
     const localId = this.nextLocalId++;
+    console.log(`[ADB] openStream: creating stream ${localId} for ${service}`);
     const stream = {
       localId,
       remoteId: null,
@@ -568,12 +621,21 @@ export class AdbUsbClient {
       closed: false,
       closeResolvers: [],
     };
-    stream.ready = new Promise((resolve) => {
+    stream.ready = new Promise((resolve, reject) => {
       stream.readyResolve = resolve;
+      stream.readyReject = reject;
+      stream.readyTimeout = setTimeout(() => {
+        console.log(`[ADB] openStream: timeout for ${service}`);
+        reject(new Error(`Stream open timeout for ${service}`));
+      }, 5000);
     });
     this.streams.set(localId, stream);
+    console.log(`[ADB] openStream: sending OPEN for stream ${localId}`);
     await this.sendPacket("OPEN", localId, 0, `${service}\0`);
+    console.log(`[ADB] openStream: OPEN sent, waiting for OKAY...`);
     await stream.ready;
+    console.log(`[ADB] openStream: got OKAY, stream ready`);
+    clearTimeout(stream.readyTimeout);
     return stream;
   }
 
@@ -682,15 +744,24 @@ export class AdbUsbClient {
   ensureReadLoop() {
     if (this.readLoopRunning) return;
     this.readLoopActive = true;
-    this.startReadLoop();
+    // Clear halt before restarting to avoid stale errors
+    this.clearHaltSafe("in").then(() => {
+      this.startReadLoop();
+    });
   }
 
   async startReadLoop() {
     this.readLoopRunning = true;
+    console.log("[ADB] Read loop started");
+    let consecutiveErrors = 0;
     while (this.readLoopActive && this.device) {
       try {
         const packet = await this.readPacket();
-        if (!packet) break;
+        consecutiveErrors = 0; // Reset on success
+        if (!packet) {
+          continue;
+        }
+        console.log("[ADB] Read loop: got packet:", packet.command, "arg0:", packet.arg0, "arg1:", packet.arg1);
         this.logPacket(
           "in",
           commandToInt(packet.command),
@@ -700,10 +771,21 @@ export class AdbUsbClient {
         );
         this.dispatchPacket(packet);
       } catch (error) {
-        this.readLoopActive = false;
+        console.log("[ADB] Read loop error:", error.message);
+        consecutiveErrors++;
+        // Try to recover from transient errors by just waiting and retrying
+        if (consecutiveErrors < 3 && this.device && this.device.opened) {
+          console.log("[ADB] Read loop: waiting and retrying...");
+          await new Promise(r => setTimeout(r, 200));
+          continue;
+        }
+        if (this.readLoopActive) {
+          this.readLoopActive = false;
+        }
         break;
       }
     }
+    console.log("[ADB] Read loop ended, active=", this.readLoopActive);
     this.readLoopRunning = false;
   }
 
@@ -714,36 +796,16 @@ export class AdbUsbClient {
     while (true) {
       // Timeout protection for individual read attempts
       if (Date.now() - startTime > 10000) {
-        this.packetLog.push({
-          ts: new Date().toISOString(),
-          direction: "debug",
-          message: "readPacket timeout after 10s of trying"
-        });
         return undefined;
       }
       
       let headerResult;
       try {
-        this.packetLog.push({
-          ts: new Date().toISOString(),
-          direction: "debug",
-          message: `transferIn start, endpoint=${this.inEndpoint}, size=${packetSize}`
-        });
         headerResult = await this.device.transferIn(
           this.inEndpoint,
           packetSize
         );
-        this.packetLog.push({
-          ts: new Date().toISOString(),
-          direction: "debug",
-          message: `transferIn done, status=${headerResult?.status}, bytes=${headerResult?.data?.byteLength}`
-        });
       } catch (error) {
-        this.packetLog.push({
-          ts: new Date().toISOString(),
-          direction: "debug",
-          message: `transferIn error: ${error.message}`
-        });
         throw error;
       }
       
@@ -751,15 +813,10 @@ export class AdbUsbClient {
         return undefined;
       }
       if (headerResult.data.byteLength !== 24) {
-        // ya-webadb: skip if not exactly 24 bytes
-        this.packetLog.push({
-          ts: new Date().toISOString(),
-          direction: "debug",
-          message: `skipping non-24-byte packet: ${headerResult.data.byteLength} bytes`
-        });
+        // Skip if not exactly 24 bytes (header size)
         continue;
       }
-      // ya-webadb: Per spec, result.data always covers the whole buffer
+      // Per spec, result.data always covers the whole buffer
       const buffer = new Uint8Array(headerResult.data.buffer);
       const headerView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
       const command = headerView.getUint32(0, true);
@@ -767,13 +824,10 @@ export class AdbUsbClient {
       const arg1 = headerView.getUint32(8, true);
       const length = headerView.getUint32(12, true);
       const magic = headerView.getUint32(20, true);
-      if (magic !== (command ^ 0xffffffff)) {
-        // ya-webadb: skip invalid packets
-        this.packetLog.push({
-          ts: new Date().toISOString(),
-          direction: "debug",
-          message: `skipping invalid magic: cmd=${command.toString(16)}, magic=${magic.toString(16)}`
-        });
+      // Use >>> 0 to convert XOR result to unsigned 32-bit for correct comparison
+      const expectedMagic = ((command ^ 0xffffffff) >>> 0);
+      if (magic !== expectedMagic) {
+        // Skip invalid packets
         continue;
       }
       let payload;
@@ -832,10 +886,19 @@ export class AdbUsbClient {
 
     if (packet.command === "CLSE") {
       const localId = packet.arg1;
+      const remoteId = packet.arg0;
+      console.log(`[ADB] CLSE received for localId=${localId}, remoteId=${remoteId}`);
       const stream = this.streams.get(localId);
       if (stream && !stream.closed) {
         stream.closed = true;
-        this.sendPacket("CLSE", stream.localId, packet.arg0, new Uint8Array());
+        // If stream was never opened (no remoteId), reject the ready promise
+        if (!stream.remoteId && stream.readyReject) {
+          clearTimeout(stream.readyTimeout);
+          stream.readyReject(new Error(`Stream rejected by device (CLSE with remoteId=${remoteId})`));
+        }
+        if (remoteId) {
+          this.sendPacket("CLSE", stream.localId, remoteId, new Uint8Array());
+        }
         stream.closeResolvers.forEach((resolve) => resolve());
       }
     }
@@ -929,7 +992,7 @@ export class AdbUsbClient {
     try {
       await this.device.clearHalt(direction, endpoint);
     } catch (error) {
-      // ignore
+      // Ignore - endpoint may not be halted
     }
   }
 
