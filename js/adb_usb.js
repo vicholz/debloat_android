@@ -713,6 +713,15 @@ export class AdbUsbClient {
           await sendChunk(payloadBytes);
         }
       } catch (retryError) {
+        // Add helpful message for transfer errors
+        const message = error.message || "";
+        if (message.includes("transfer error")) {
+          const betterError = new Error(
+            `${message} Disconnect the USB cable from the device and reconnect, or try selecting the device again.`
+          );
+          betterError.cause = error;
+          throw betterError;
+        }
         throw error;
       }
     }
