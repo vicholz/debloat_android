@@ -77,6 +77,24 @@ code {
   font-size: 20px;
 }
 
+.app-version {
+  margin: 0;
+  font-size: 12px;
+  color: #9aa3b2;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.app-version a {
+  color: inherit;
+  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-underline-offset: 2px;
+}
+
+.app-version a:hover {
+  color: #356df3;
+}
+
 /* =============================================================================
    CONNECTION STATUS BADGE
    ============================================================================= */

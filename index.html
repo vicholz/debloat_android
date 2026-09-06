@@ -39,7 +39,10 @@
          The status indicator changes color based on connection state.
     ==================================================================== -->
     <header class="app-header">
-      <h1>Universal Android Debloater - Web</h1>
+      <div>
+        <h1>Universal Android Debloater - Web</h1>
+        <p class="app-version" id="app-version" hidden></p>
+      </div>
       <!-- 
         Connection status badge - updated by JavaScript
         CSS class "connected" is toggled to change appearance
@@ -203,5 +206,39 @@
       All UI logic and ADB communication is handled here
     -->
     <script type="module" src="js/app.js"></script>
+    <script>
+      const APP_REPO = "vicholz/debloat_android";
+      const APP_VERSION_FALLBACK_SHA = "f7b1cb85fc3fcb4d5a7b3f39e8f3c1dc8a2d04d3";
+
+      function renderAppVersion(sha) {
+        const el = document.querySelector("#app-version");
+        if (!el || !sha) return;
+        el.replaceChildren();
+        el.append("Version ");
+        const a = document.createElement("a");
+        a.href = "https://github.com/" + APP_REPO + "/commit/" + sha;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = sha.slice(0, 7);
+        a.title = "View the diff for this version";
+        el.appendChild(a);
+        el.hidden = false;
+      }
+
+      function loadAppVersion() {
+        renderAppVersion(APP_VERSION_FALLBACK_SHA);
+        fetch("https://api.github.com/repos/" + APP_REPO + "/commits/main")
+          .then(function (res) {
+            if (!res.ok) throw new Error(res.status);
+            return res.json();
+          })
+          .then(function (commit) {
+            if (commit.sha) renderAppVersion(commit.sha);
+          })
+          .catch(function () {});
+      }
+
+      loadAppVersion();
+    </script>
   </body>
 </html>
